@@ -187,7 +187,9 @@ services.bb-host-daemon = {
 };
 ```
 
-TLS stays end to end. Under libkrun's TSI networking, sockets behave differently (a listener on port 0 is unreachable, a
+TLS stays end to end. In a microVM `/etc/hosts` is written by the container runtime before init, and NixOS leaves such a file alone, so
+`networking.hosts` alone has no effect there (seen on Hyades, 2026-10-17); with `boot.isContainer` the module also runs a oneshot
+`bb-hosts-entry` that appends the line at every boot, before the daemon. Under libkrun's TSI networking, sockets behave differently (a listener on port 0 is unreachable, a
 blocked `recv` holds the socket lock); the
 [loopback-port-shim](https://forgejo.mit.edu/djbclark/loopback-port-shim) `LD_PRELOAD` library works around them. Build it
 with `gcc -shared -fPIC -O2 -pthread -o portshim.so loopback-port-shim.c -ldl` and point `ldPreload` at the result. The
@@ -264,7 +266,7 @@ hash-pinned tarballs). Then `nix flake update bb-nix` in your system flake and s
 | `extraPackages` | `[ ]` | Agent tools |
 | `forwarder.enable` | `false` | The socat loopback forwarder unit |
 | `forwarder.listenPort`, `.proxy`, `.target` | `38443`, `127.0.0.1:1055`, `null` | Listen port, CONNECT proxy, server `host:port` |
-| `hostsEntry` | `false` | `/etc/hosts`: the server's host name to 127.0.0.1 |
+| `hostsEntry` | `false` | `/etc/hosts`: the server's host name to 127.0.0.1 (in a container the unit `bb-hosts-entry` appends it at every boot, because the runtime owns that file) |
 
 Do not enable both modules on one machine: `services.bb` already runs a daemon (an assertion enforces it).
 

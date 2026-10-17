@@ -127,6 +127,10 @@ let
       text = unitText daemon "bb-tailnet-forward.service";
     }
     {
+      title = "daemon (existing user, /persist): bb-hosts-entry.service";
+      text = unitText daemon "bb-hosts-entry.service";
+    }
+    {
       title = "daemon (created user, /var/lib): bb-host-daemon.service";
       text = unitText daemonCreated "bb-host-daemon.service";
     }
@@ -171,6 +175,13 @@ let
     {
       msg = "host daemon with a created user defaults to /var/lib/bb-host/.local";
       ok = inUnit daemonCreated "bb-host-daemon.service" "NPM_CONFIG_PREFIX=/var/lib/bb-host/.local";
+    }
+    {
+      msg = "in a container, hostsEntry also appends the server name to /etc/hosts at boot (the runtime owns that file)";
+      ok =
+        inUnit daemon "bb-hosts-entry.service" "grep -qF"
+        && inUnit daemon "bb-hosts-entry.service" "bb.example.ts.net"
+        && inUnit daemon "bb-host-daemon.service" "bb-hosts-entry.service";
     }
     {
       msg = "host daemon with an existing user has no npm prefix by default";

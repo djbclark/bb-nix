@@ -181,7 +181,9 @@ in
       description = ''
         Map the host name of `serverUrl` to 127.0.0.1 in /etc/hosts, so that with the forwarder the daemon
         keeps using the server's real name (its TLS certificate matches) while its traffic goes through
-        the loopback listener.
+        the loopback listener. Inside a container or microVM (`boot.isContainer`) /etc/hosts belongs to the
+        container runtime, which NixOS does not overwrite, so the unit `bb-hosts-entry` appends the line at
+        every boot instead.
       '';
     };
   };
@@ -245,10 +247,34 @@ in
 
     networking.hosts = mkIf (cfg.hostsEntry && serverHost != null) { "127.0.0.1" = [ serverHost ]; };
 
+    # In a container or microVM (libkrun, podman) the runtime writes /etc/hosts before init starts and NixOS
+    # leaves an existing unmanaged file alone, so `networking.hosts` has no effect there: the daemon would
+    # resolve the server's real name through DNS (or fail) instead of the loopback forwarder. Append the entry
+    # at every boot, before the daemon starts. Idempotent; the runtime rewrites the file at the next start.
+    systemd.services.bb-hosts-entry = mkIf (cfg.hostsEntry && serverHost != null && config.boot.isContainer) {
+      description = "Map the BB server's name to 127.0.0.1 in /etc/hosts (container /etc/hosts is not managed by NixOS)";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "bb-host-daemon.service" ];
+      path = [ pkgs.gnugrep ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        grep -qF ${lib.escapeShellArg serverHost} /etc/hosts || printf '%s\n' ${lib.escapeShellArg "127.0.0.1 ${serverHost}"} >> /etc/hosts
+      '';
+    };
+
     systemd.services.bb-host-daemon = {
       description = "BB host daemon";
-      after = [ "network-online.target" ] ++ lib.optional cfg.forwarder.enable "bb-tailnet-forward.service";
-      wants = [ "network-online.target" ] ++ lib.optional cfg.forwarder.enable "bb-tailnet-forward.service";
+      after =
+        [ "network-online.target" ]
+        ++ lib.optional cfg.forwarder.enable "bb-tailnet-forward.service"
+        ++ lib.optional (cfg.hostsEntry && config.boot.isContainer) "bb-hosts-entry.service";
+      wants =
+        [ "network-online.target" ]
+        ++ lib.optional cfg.forwarder.enable "bb-tailnet-forward.service"
+        ++ lib.optional (cfg.hostsEntry && config.boot.isContainer) "bb-hosts-entry.service";
       wantedBy = [ "multi-user.target" ];
       # A plain string in `path` is a directory whose bin/ is added: the npm global prefix, first.
       path =
