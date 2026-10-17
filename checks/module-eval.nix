@@ -179,8 +179,8 @@ let
     {
       msg = "in a container, hostsEntry also appends the server name to /etc/hosts at boot (the runtime owns that file)";
       ok =
-        inUnit daemon "bb-hosts-entry.service" "grep -qF"
-        && inUnit daemon "bb-hosts-entry.service" "bb.example.ts.net"
+        lib.hasInfix "grep -qF" daemon.config.systemd.services.bb-hosts-entry.script
+        && lib.hasInfix "127.0.0.1 bb.example.ts.net" daemon.config.systemd.services.bb-hosts-entry.script
         && inUnit daemon "bb-host-daemon.service" "bb-hosts-entry.service";
     }
     {
