@@ -157,6 +157,23 @@ in
       };
     };
 
+    npmGlobalPrefix = mkOption {
+      type = types.nullOr types.str;
+      default = "${cfg.dataDir}/.local";
+      defaultText = lib.literalExpression ''"''${config.services.bb.dataDir}/.local"'';
+      example = "/var/lib/bb/.npm-global";
+      description = ''
+        Where `npm install -g` puts packages for the service user. BB's own agent installer (Settings,
+        Providers: Pi and others) runs `npm install -g <package>`, and on NixOS npm's default prefix is the
+        read-only Node.js store path, so it fails with `ENOENT ... mkdir '/nix/store/...-nodejs-.../lib'`.
+        This sets `NPM_CONFIG_PREFIX` to the directory below, in the unit (so the installer and the
+        `$SHELL -ilc env` probe BB uses to learn each thread's PATH inherit it) and in the user's login
+        shells (`sudo -u bb -H bash -l`), and puts `<prefix>/bin` first on both PATHs. The default shares
+        `~/.local/bin` with the native Claude Code installer. Nothing is written to the user's home by the
+        module: npm creates `<prefix>` on first use. `null` leaves npm's default (global installs fail).
+      '';
+    };
+
     extraPackages = mkOption {
       type = types.listOf types.package;
       default = [ ];
@@ -261,6 +278,10 @@ in
         message = "services.bb.dataDir must be an absolute path without a trailing slash.";
       }
       {
+        assertion = cfg.npmGlobalPrefix == null || lib.hasPrefix "/" cfg.npmGlobalPrefix;
+        message = "services.bb.npmGlobalPrefix must be an absolute path (or null).";
+      }
+      {
         assertion = cfg.hostDaemonPort != cfg.port;
         message = "services.bb.port and services.bb.hostDaemonPort must differ.";
       }
@@ -285,6 +306,18 @@ in
     programs.nix-ld.enable = mkIf cfg.claudeCode.nativeInstaller (lib.mkDefault true);
     environment.localBinInPath = mkIf cfg.claudeCode.nativeInstaller (lib.mkDefault true);
 
+    # Login shells of the service user (`sudo -u bb -H bash -l`, and the `$SHELL -ilc env` probe BB runs per
+    # thread): /etc/set-environment is where NixOS builds the environment of every login and interactive
+    # shell, and extraInit is its hook for code that cannot be a plain variable. A guard on the user name
+    # keeps it from touching anyone else, and no file in the user's home is created or edited (a ~/.profile
+    # or ~/.npmrc would be state the module does not own and could not update on a rebuild).
+    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null) ''
+      if [ "$(${pkgs.coreutils}/bin/id -un 2>/dev/null)" = ${lib.escapeShellArg cfg.user} ]; then
+        export NPM_CONFIG_PREFIX=${lib.escapeShellArg cfg.npmGlobalPrefix}
+        export PATH=${lib.escapeShellArg cfg.npmGlobalPrefix}/bin:"$PATH"
+      fi
+    '';
+
     networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [ cfg.port ];
 
     systemd.services = {
@@ -293,19 +326,23 @@ in
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
         wantedBy = [ "multi-user.target" ];
-        path = [
-          cfg.nodejs
-          pkgs.git
-          pkgs.openssh
-          pkgs.coreutils
-          pkgs.bash
-        ]
-        ++ cfg.extraPackages;
+        # A plain string in `path` is a directory whose bin/ is added: the npm global prefix, first.
+        path =
+          lib.optional (cfg.npmGlobalPrefix != null) cfg.npmGlobalPrefix
+          ++ [
+            cfg.nodejs
+            pkgs.git
+            pkgs.openssh
+            pkgs.coreutils
+            pkgs.bash
+          ]
+          ++ cfg.extraPackages;
         environment = {
           HOME = cfg.dataDir;
           BB_DATA_DIR = cfg.dataDir;
           BB_TELEMETRY = lib.boolToString cfg.telemetry;
         }
+        // optionalAttrs (cfg.npmGlobalPrefix != null) { NPM_CONFIG_PREFIX = cfg.npmGlobalPrefix; }
         // optionalAttrs (cfg.appUrl != null) { BB_APP_URL = cfg.appUrl; }
         // optionalAttrs (cfg.externalUrl != null) { BB_EXTERNAL_URL = cfg.externalUrl; }
         // optionalAttrs (cfg.claudeCode.executable != null) {

@@ -95,7 +95,18 @@ daemon joins by itself; no account is needed and no machine enrolment for the fi
    path. The module turns on `programs.nix-ld` for that generic glibc binary when `claudeCode.nativeInstaller` is set.
    To use a token instead of a login, put `CLAUDE_CODE_OAUTH_TOKEN=...` in a file and point `environmentFile` at it.
 2. **Codex**: `sudo -u bb -H codex login --device-auth` (with `codex-npm-bin` in `extraPackages`).
-3. Restart (`systemctl restart bb`) if BB was already running: it reads each CLI's presence when it starts a thread.
+3. **Agents BB installs itself** (Pi, from Settings, Providers): BB runs `npm install -g <package>`. On NixOS npm's default
+   prefix is the Node.js store path, which is read-only, so the install used to fail with
+   `ENOENT: no such file or directory, mkdir '/nix/store/...-nodejs-slim-.../lib'`. `npmGlobalPrefix` fixes it by
+   pointing npm at `<dataDir>/.local` (binaries in `.local/bin`, next to the native Claude Code installer): the unit
+   gets `NPM_CONFIG_PREFIX` (BB's installer, and the `$SHELL -ilc env` probe that learns each thread's PATH, are its
+   children), and so does every login shell of the user, through `environment.extraInit` guarded by the user's name.
+   That hook was chosen over a `~/.profile` or `~/.npmrc` because the module then owns no file in the home directory
+   and a rebuild changes the value everywhere at once. `<prefix>/bin` is first on the unit's PATH and the login PATH
+   whether or not `claudeCode.nativeInstaller` is set. Check: `sudo -u bb -H bash -lc 'npm config get prefix'`.
+   Only shells that read `/etc/profile` or `/etc/bashrc` see it (`sudo -u bb -H npm ...` with no shell does not; add
+   `-H bash -lc`).
+4. Restart (`systemctl restart bb`) if BB was already running: it reads each CLI's presence when it starts a thread.
 
 ## Adding another machine
 
@@ -228,6 +239,7 @@ hash-pinned tarballs). Then `nix flake update bb-nix` in your system flake and s
 | `telemetry` | `false` | `BB_TELEMETRY` (BB's own default is on) |
 | `claudeCode.executable` | `null` | `BB_CLAUDE_CODE_EXECUTABLE` |
 | `claudeCode.nativeInstaller` | `false` | `programs.nix-ld` and `environment.localBinInPath` |
+| `npmGlobalPrefix` | `<dataDir>/.local` | `NPM_CONFIG_PREFIX` for the unit and the user's login shells, `<prefix>/bin` first on PATH. BB's agent installer runs `npm install -g`, which fails on NixOS without it (see below). `null` turns it off |
 | `extraPackages` | `[ ]` | Agent tools: the user's profile and the unit's PATH |
 | `environment` | `{ }` | More unit environment; never secrets |
 | `environmentFile` | `null` | `EnvironmentFile` for secrets such as `CLAUDE_CODE_OAUTH_TOKEN` |
@@ -247,6 +259,7 @@ hash-pinned tarballs). Then `nix flake update bb-nix` in your system flake and s
 | `dataDir` | `/var/lib/bb-host` | `--data-dir`: identity, logs, worktrees. With a created user it is also the home |
 | `port` | `38888` | `--host-daemon-port` (loopback) |
 | `ldPreload` | `null` | For example the loopback-port-shim under libkrun |
+| `npmGlobalPrefix` | `<dataDir>/.local` with a created user, else `null` | As in `services.bb`. For an existing user, set it to a directory that user can write (e.g. `~/.local`) or export `NPM_CONFIG_PREFIX` in that user's profile |
 | `extraPackages` | `[ ]` | Agent tools |
 | `forwarder.enable` | `false` | The socat loopback forwarder unit |
 | `forwarder.listenPort`, `.proxy`, `.target` | `38443`, `127.0.0.1:1055`, `null` | Listen port, CONNECT proxy, server `host:port` |

@@ -125,6 +125,22 @@ in
       '';
     };
 
+    npmGlobalPrefix = mkOption {
+      type = types.nullOr types.str;
+      default = if cfg.createUser then "${cfg.dataDir}/.local" else null;
+      defaultText = lib.literalMD "`\"\${dataDir}/.local\"` when the module creates the user, else `null`";
+      example = "/home/agent/.local";
+      description = ''
+        Where `npm install -g` puts packages for the agents' user (BB's agent installer runs it; on NixOS
+        npm's default prefix is the read-only Node.js store path and the install fails). When set, the module
+        sets `NPM_CONFIG_PREFIX` in the unit and in that user's login shells, and puts `<prefix>/bin` first
+        on both PATHs. See `services.bb.npmGlobalPrefix`, which this mirrors. For an existing user
+        (`createUser = false`) the default is `null`, because the module does not know or touch that user's
+        home: set it to a directory that user can write, for example `~/.local`, or set `NPM_CONFIG_PREFIX`
+        in that user's own shell profile.
+      '';
+    };
+
     extraPackages = mkOption {
       type = types.listOf types.package;
       default = [ ];
@@ -184,6 +200,10 @@ in
         message = "services.bb-host-daemon.dataDir must be an absolute path without a trailing slash.";
       }
       {
+        assertion = cfg.npmGlobalPrefix == null || lib.hasPrefix "/" cfg.npmGlobalPrefix;
+        message = "services.bb-host-daemon.npmGlobalPrefix must be an absolute path (or null).";
+      }
+      {
         assertion = cfg.forwarder.enable -> (proxy != null && target != null);
         message = "services.bb-host-daemon.forwarder needs proxy = \"host:port\" and target = \"host:port\".";
       }
@@ -212,6 +232,15 @@ in
 
     environment.systemPackages = [ cfg.package ];
 
+    # Login shells of the agents' user get the npm prefix (see services.bb for why extraInit, and why a
+    # guard on the user name instead of a file in the home directory).
+    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null) ''
+      if [ "$(${pkgs.coreutils}/bin/id -un 2>/dev/null)" = ${lib.escapeShellArg cfg.user} ]; then
+        export NPM_CONFIG_PREFIX=${lib.escapeShellArg cfg.npmGlobalPrefix}
+        export PATH=${lib.escapeShellArg cfg.npmGlobalPrefix}/bin:"$PATH"
+      fi
+    '';
+
     networking.hosts = mkIf (cfg.hostsEntry && serverHost != null) { "127.0.0.1" = [ serverHost ]; };
 
     systemd.services.bb-host-daemon = {
@@ -219,17 +248,21 @@ in
       after = [ "network-online.target" ] ++ lib.optional cfg.forwarder.enable "bb-tailnet-forward.service";
       wants = [ "network-online.target" ] ++ lib.optional cfg.forwarder.enable "bb-tailnet-forward.service";
       wantedBy = [ "multi-user.target" ];
-      path = [
-        cfg.nodejs
-        pkgs.git
-        pkgs.openssh
-        pkgs.coreutils
-        pkgs.bash
-      ]
-      ++ cfg.extraPackages;
+      # A plain string in `path` is a directory whose bin/ is added: the npm global prefix, first.
+      path =
+        lib.optional (cfg.npmGlobalPrefix != null) cfg.npmGlobalPrefix
+        ++ [
+          cfg.nodejs
+          pkgs.git
+          pkgs.openssh
+          pkgs.coreutils
+          pkgs.bash
+        ]
+        ++ cfg.extraPackages;
       environment = {
         BB_DATA_DIR = cfg.dataDir;
       }
+      // optionalAttrs (cfg.npmGlobalPrefix != null) { NPM_CONFIG_PREFIX = cfg.npmGlobalPrefix; }
       # With an existing user, HOME stays what the user database says (systemd sets it for User=).
       // optionalAttrs cfg.createUser { HOME = cfg.dataDir; }
       // optionalAttrs (cfg.ldPreload != null) { LD_PRELOAD = toString cfg.ldPreload; };

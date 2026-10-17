@@ -136,16 +136,54 @@ let
     lib.concatMapStrings (u: "===== ${u.title}\n${u.text}\n") units
   );
   hostsDump = daemon.config.networking.hosts."127.0.0.1" or [ ];
+
+  # npmGlobalPrefix: the unit gets NPM_CONFIG_PREFIX and <prefix>/bin on PATH, and the user's login shells
+  # get both through /etc/set-environment (environment.extraInit), guarded by the user name.
+  inUnit =
+    sys: name: needle:
+    lib.hasInfix needle (builtins.unsafeDiscardStringContext (unitText sys name));
+  extraInit = sys: builtins.unsafeDiscardStringContext sys.config.environment.extraInit;
+  expectations = [
+    {
+      msg = "bb.service has NPM_CONFIG_PREFIX=/var/lib/bb/.local";
+      ok = inUnit server "bb.service" "NPM_CONFIG_PREFIX=/var/lib/bb/.local";
+    }
+    {
+      msg = "bb.service PATH has /var/lib/bb/.local/bin";
+      ok = inUnit server "bb.service" "/var/lib/bb/.local/bin";
+    }
+    {
+      msg = "login shells of bb get NPM_CONFIG_PREFIX";
+      ok =
+        lib.hasInfix "NPM_CONFIG_PREFIX=/var/lib/bb/.local" (extraInit server)
+        && lib.hasInfix "= bb ]" (extraInit server);
+    }
+    {
+      msg = "host daemon with a created user defaults to /var/lib/bb-host/.local";
+      ok = inUnit daemonCreated "bb-host-daemon.service" "NPM_CONFIG_PREFIX=/var/lib/bb-host/.local";
+    }
+    {
+      msg = "host daemon with an existing user has no npm prefix by default";
+      ok =
+        !(inUnit daemon "bb-host-daemon.service" "NPM_CONFIG_PREFIX")
+        && !(lib.hasInfix "NPM_CONFIG_PREFIX" (extraInit daemon));
+    }
+  ];
+  failed = map (e: e.msg) (lib.filter (e: !e.ok) expectations);
 in
+lib.throwIf (failed != [ ]) "bb module-eval expectations failed: ${lib.concatStringsSep "; " failed}" (
 runCommand "bb-module-eval"
   {
     passAsFile = [ "unitDump" ];
     inherit unitDump;
+    extraInit = extraInit server;
     hosts = lib.concatStringsSep " " hostsDump;
   }
   ''
     printf '%s\n' ${lib.escapeShellArgs drvs} > $out
     cat "$unitDumpPath" >> $out
     echo "===== /etc/hosts 127.0.0.1 entries of the existing-user daemon system: $hosts" >> $out
+    printf '===== server: environment.extraInit (login shells)\n%s\n' "$extraInit" >> $out
     cat $out
   ''
+)
