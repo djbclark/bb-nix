@@ -103,7 +103,49 @@ let
     daemon
     daemonCreated
   ];
+  # The unit files the modules produce, written out so a review (and the CI log) can read them.
+  unitText = sys: name: sys.config.systemd.units.${name}.text;
+  units = [
+    {
+      title = "server: bb.service";
+      text = unitText server "bb.service";
+    }
+    {
+      title = "server: bb-tailscale-serve-443.service";
+      text = unitText server "bb-tailscale-serve-443.service";
+    }
+    {
+      title = "server: bb-tailscale-serve-38443.service";
+      text = unitText server "bb-tailscale-serve-38443.service";
+    }
+    {
+      title = "daemon (existing user, /persist): bb-host-daemon.service";
+      text = unitText daemon "bb-host-daemon.service";
+    }
+    {
+      title = "daemon (existing user, /persist): bb-tailnet-forward.service";
+      text = unitText daemon "bb-tailnet-forward.service";
+    }
+    {
+      title = "daemon (created user, /var/lib): bb-host-daemon.service";
+      text = unitText daemonCreated "bb-host-daemon.service";
+    }
+  ];
+  # Without the string context, the dump names store paths but does not make this check build them.
+  unitDump = builtins.unsafeDiscardStringContext (
+    lib.concatMapStrings (u: "===== ${u.title}\n${u.text}\n") units
+  );
+  hostsDump = daemon.config.networking.hosts."127.0.0.1" or [ ];
 in
-runCommand "bb-module-eval" { } ''
-  printf '%s\n' ${lib.escapeShellArgs drvs} > $out
-''
+runCommand "bb-module-eval"
+  {
+    passAsFile = [ "unitDump" ];
+    inherit unitDump;
+    hosts = lib.concatStringsSep " " hostsDump;
+  }
+  ''
+    printf '%s\n' ${lib.escapeShellArgs drvs} > $out
+    cat "$unitDumpPath" >> $out
+    echo "===== /etc/hosts 127.0.0.1 entries of the existing-user daemon system: $hosts" >> $out
+    cat $out
+  ''
