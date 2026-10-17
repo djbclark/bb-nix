@@ -1,5 +1,5 @@
 # The OpenAI Codex CLI (@openai/codex on npm) for x86_64-linux, packed by Forgejo CI (djbclark/bb-build)
-# and pinned by hash in pins.json. BB needs Codex 0.136.0 or newer to drive it; this is 0.154.0.
+# and pinned by hash in pins.json. BB needs Codex 0.136.0 or newer to drive it; this is 0.163.0.
 # The npm tree holds a node launcher and its static platform binary, so nothing needs patching.
 # `codex` is a wrapper around Node, so it works for an agent user whose login PATH has no `node`.
 {

@@ -2,7 +2,7 @@
 
 NixOS modules and Nix packages for [BB](https://github.com/get-bb/bb) (the `bb-app` npm package): a web UI and
 server for coding agents (Claude Code, Codex, and any ACP agent) that runs their threads on one or many machines.
-An unofficial packaging, MIT like BB. Pinned to **BB 0.46.1** and Codex 0.154.0; both are updated here by hand.
+An unofficial packaging, MIT like BB. Pinned to **BB 0.46.1** and Codex 0.163.0; both are updated here by hand.
 
 ```
 services.bb              one unit: BB server + web UI + a host daemon on the same machine
@@ -278,7 +278,7 @@ Do not enable both modules on one machine: `services.bb` already runs a daemon (
 | --- | --- |
 | `bb-app` (`default`) | `buildNpmPackage` from `lock/` with `importNpmLock` (no dependency hash to maintain); x86_64-linux is built in CI, aarch64-linux evaluates but is unverified |
 | `bb-app-bin` | The tarball CI built: x86_64-linux, pinned by hash, 40 MB, `autoPatchelfHook` over the four prebuilt native modules |
-| `codex-npm-bin` | `@openai/codex` 0.154.0 from npm, wrapped in Node, pinned by hash |
+| `codex-npm-bin` | `@openai/codex` 0.163.0 from npm, wrapped in Node, pinned by hash |
 
 `overlays.default` adds all three to nixpkgs. Nothing is compiled: BB's native modules (better-sqlite3, node-pty,
 @parcel/watcher, fs-native-extensions) ship prebuilt N-API binaries, which are linked against glibc and libstdc++, so

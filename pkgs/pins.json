@@ -5,8 +5,8 @@
     "hash": "sha256-ofQ+mDvXJ0ZJxUK7FAsMh7cACc5kSDrVfG5/uvD27jc="
   },
   "codex": {
-    "version": "0.154.0",
-    "url": "https://forgejo.mit.edu/api/packages/djbclark/generic/bb-codex-npm/0.154.0-2/codex-npm-0.154.0-linux-x64.tar.gz",
-    "hash": "sha256-zbtTYsonw37SwqdCgY6Zr6N31uw+bBlqqOcq+2bzT5Q="
+    "version": "0.163.0",
+    "url": "https://forgejo.mit.edu/api/packages/djbclark/generic/bb-codex-npm/0.163.0-26/codex-npm-0.163.0-linux-x64.tar.gz",
+    "hash": "sha256-cyvKTnA4rOUbv/uiGdXkVgRoNwpQcrVKoSZT1eHi/HM="
   }
 }
