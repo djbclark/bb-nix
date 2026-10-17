@@ -286,14 +286,14 @@ for other users' homes), add it with `systemd.services.bb.serviceConfig`.
 
 `nix flake check` runs `checks.x86_64-linux.smoke`, `module-eval` and, with KVM, `vm`:
 
-1. `smoke` starts the packaged `bb-app` for real (a throwaway `HOME` and data dir), waits for `/health`, runs
+1. `smoke` (and `smoke-generic`, for the package built from the lock) starts the packaged `bb-app` for real (a throwaway `HOME` and data dir), waits for `/health`, runs
    `bb --version`, asks the CLI for the co-located machine, and stops it.
 2. `module-eval` evaluates sample systems that use both modules down to the system derivation, so a typo in an option
    fails CI. It does not build them.
 3. `vm` is a NixOS test that boots `services.bb` under systemd. It needs `/dev/kvm`.
 
-The author builds everything in Forgejo CI on a runner without KVM and without Nix on his laptop; CI builds the five
-non-VM attributes.
+The author builds everything in Forgejo CI on a runner without KVM and without Nix on his laptop; CI builds
+every attribute except `vm`.
 
 ## License
 

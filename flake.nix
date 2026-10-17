@@ -51,6 +51,10 @@
         smoke = pkgsX86.callPackage ./checks/smoke.nix {
           bb-app = self.packages.x86_64-linux.bb-app-bin;
         };
+        # The same test against the package built from the npm lock.
+        smoke-generic = pkgsX86.callPackage ./checks/smoke.nix {
+          bb-app = self.packages.x86_64-linux.bb-app;
+        };
         module-eval = pkgsX86.callPackage ./checks/module-eval.nix {
           inherit nixpkgs;
           bbModules = self.nixosModules.default;

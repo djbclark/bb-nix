@@ -1,4 +1,5 @@
-# Starts the packaged bb-app for real and talks to it: no KVM, no systemd, no network beyond loopback.
+# Starts the packaged bb-app (either package: the flake runs this for bb-app-bin and for the bb-app that is
+# built from the npm lock) for real and talks to it: no KVM, no systemd, no network beyond loopback.
 #
 #   1. `bb-app` boots the server and its co-located host daemon with HOME and the data dir in $TMPDIR,
 #      which also proves the read-only store path works (BB writes only under its data dir).
@@ -14,7 +15,7 @@
   jq,
   bb-app,
 }:
-runCommand "bb-smoke-${bb-app.version}"
+runCommand "smoke-${bb-app.pname}-${bb-app.version}"
   {
     nativeBuildInputs = [
       bb-app
