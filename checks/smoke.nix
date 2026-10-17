@@ -49,6 +49,8 @@ runCommand "smoke-${bb-app.pname}-${bb-app.version}"
         tail -25 "$f" >&2 || true
       done
       kill "$pid" 2>/dev/null || true
+      # again last: Nix shows only the tail of a failed build's log
+      echo "FAIL: $1" >&2
       exit 1
     }
 
