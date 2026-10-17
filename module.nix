@@ -141,8 +141,8 @@ in
         default = null;
         example = "/var/lib/bb/.local/bin/claude";
         description = ''
-          `BB_CLAUDE_CODE_EXECUTABLE`: full path of the `claude` binary. Unset, BB looks for `claude` on the
-          thread's PATH.
+          `BB_CLAUDE_CODE_EXECUTABLE`: full path of the `claude` binary. It must exist and be executable when
+          a Claude Code thread starts (BB refuses otherwise). Unset, BB looks for `claude` on the thread's PATH.
         '';
       };
 
