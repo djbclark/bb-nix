@@ -79,8 +79,9 @@ After the switch:
 
 ```bash
 curl -fsS http://127.0.0.1:38886/health       # {"ok":true,"launchId":"..."}
-# a shorthand for the BB CLI as the service user (it needs the data dir and the server address):
-bbcli() { sudo -u bb -H env BB_DATA_DIR=/var/lib/bb BB_SERVER_URL=http://127.0.0.1:38886 bb "$@"; }
+# a shorthand for the BB CLI as the service user (it needs the data dir and the server address, and a
+# working directory the bb user can enter: from /root or your home it dies with "spawn .../bin/node EACCES"):
+bbcli() { (cd /tmp && sudo -u bb -H env BB_DATA_DIR=/var/lib/bb BB_SERVER_URL=http://127.0.0.1:38886 bb "$@"); }
 bbcli --version
 ```
 
