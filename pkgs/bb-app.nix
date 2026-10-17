@@ -48,6 +48,8 @@ buildNpmPackage {
     cp -r node_modules package.json package-lock.json $out/lib/bb/
     ${common.pruneNative}
     pruneNative $out/lib/bb
+    ${common.patchHostPackage}
+    patchHostPackage $out/lib/bb
     ${common.wrapBins}
     runHook postInstall
   '';

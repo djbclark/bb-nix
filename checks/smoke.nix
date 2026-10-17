@@ -7,6 +7,7 @@
 #   3. `bb --version` prints the packaged version.
 #   4. `bb machine list` (the CLI talking to the running server) shows the co-located daemon, so the
 #      daemon's WebSocket to the server worked over loopback.
+#   4b. GET /install/bb-app.tgz (the host package a machine installer downloads) returns a tarball.
 #   5. It stops bb-app and checks for a clean exit.
 {
   lib,
@@ -83,6 +84,14 @@ runCommand "smoke-${bb-app.pname}-${bb-app.version}"
       fail "the co-located host daemon never showed up in 'bb machine list'"
     fi
     echo "machines: $(echo "$machines" | jq -c 'map({name, status})' 2>/dev/null || echo "$machines")"
+
+    # 4b. the host package a new machine's installer downloads (built from the read-only store copy)
+    code=$(curl -sS --max-time 120 -o "$TMPDIR/host.tgz" -w '%{http_code}' "http://127.0.0.1:$port/install/bb-app.tgz") \
+      || fail "/install/bb-app.tgz did not answer"
+    [ "$code" = 200 ] || { cat "$TMPDIR/host.tgz" >&2 || true; fail "/install/bb-app.tgz returned HTTP $code"; }
+    tar -tzf "$TMPDIR/host.tgz" | grep -q '^package/host-daemon/dist/bb-chunks/' \
+      || fail "host package has no host-daemon/dist/bb-chunks"
+    echo "host package: $(wc -c < "$TMPDIR/host.tgz") bytes"
 
     kill -TERM "$pid"
     rc=0

@@ -304,7 +304,8 @@ for other users' homes), add it with `systemd.services.bb.serviceConfig`.
 `nix flake check` runs `checks.x86_64-linux.smoke`, `module-eval` and, with KVM, `vm`:
 
 1. `smoke` (and `smoke-generic`, for the package built from the lock) starts the packaged `bb-app` for real (a throwaway `HOME` and data dir), waits for `/health`, runs
-   `bb --version`, asks the CLI for the co-located machine, and stops it.
+   `bb --version`, asks the CLI for the co-located machine, downloads `/install/bb-app.tgz` (the host package a new
+   machine's installer fetches; the packages patch BB so it can build that from the read-only store), and stops it.
 2. `module-eval` evaluates sample systems that use both modules down to the system derivation, so a typo in an option
    fails CI. It does not build them.
 3. `vm` is a NixOS test that boots `services.bb` under systemd. It needs `/dev/kvm`.
