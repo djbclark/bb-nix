@@ -102,7 +102,8 @@ daemon joins by itself; no account is needed and no machine enrolment for the fi
    gets `NPM_CONFIG_PREFIX` (BB's installer, and the `$SHELL -ilc env` probe that learns each thread's PATH, are its
    children), and so does every login shell of the user, through `environment.extraInit` guarded by the user's name.
    That hook was chosen over a `~/.profile` or `~/.npmrc` because the module then owns no file in the home directory
-   and a rebuild changes the value everywhere at once. `<prefix>/bin` is first on the unit's PATH and the login PATH
+   and a rebuild changes the value everywhere at once. Node.js (`nodejs`) is added to the user's profile too, since what
+   npm installs runs by `#!/usr/bin/env node`. `<prefix>/bin` is first on the unit's PATH and the login PATH
    whether or not `claudeCode.nativeInstaller` is set. Check: `sudo -u bb -H bash -lc 'npm config get prefix'`.
    Only shells that read `/etc/profile` or `/etc/bashrc` see it (`sudo -u bb -H npm ...` with no shell does not; add
    `-H bash -lc`).

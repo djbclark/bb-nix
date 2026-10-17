@@ -32,6 +32,11 @@ let
 
   tailscale = config.services.tailscale.package;
   serveUnitName = port: "bb-tailscale-serve-${toString port}";
+  # `tailscale serve` changes are compare-and-swap on one config: two of these units starting or stopping
+  # together (a rebuild does both) can lose with "etag mismatch" ("Another client is changing the serve
+  # config"). That left a stale :8443 serve behind once, so retry a few times. `$$` is systemd's escape for
+  # a literal `$` in a command line.
+  retry = cmd: "${pkgs.bash}/bin/sh -c 'for i in 1 2 3 4 5 6; do ${cmd} && exit 0; sleep $$i; done; exit 1'";
 in
 {
   options.services.bb = {
@@ -170,7 +175,8 @@ in
         `$SHELL -ilc env` probe BB uses to learn each thread's PATH inherit it) and in the user's login
         shells (`sudo -u bb -H bash -l`), and puts `<prefix>/bin` first on both PATHs. The default shares
         `~/.local/bin` with the native Claude Code installer. Nothing is written to the user's home by the
-        module: npm creates `<prefix>` on first use. `null` leaves npm's default (global installs fail).
+        module: npm creates `<prefix>` on first use. With a prefix set, `nodejs` also goes into the user's profile, because
+        what npm installs is run by `#!/usr/bin/env node`. `null` leaves npm's default (global installs fail).
       '';
     };
 
@@ -297,7 +303,9 @@ in
       # BB probes each thread's environment with `$SHELL -ilc env` (3 s limit), so the user needs a real
       # login shell and its tools in its profile.
       shell = pkgs.bashInteractive;
-      packages = cfg.extraPackages;
+      # Node.js too when npm installs go to a prefix: what `npm install -g` puts there (Pi, for one) is a
+      # script with an `#!/usr/bin/env node` line, and npm itself is what you run to check it.
+      packages = cfg.extraPackages ++ lib.optional (cfg.npmGlobalPrefix != null) cfg.nodejs;
     };
 
     # `bb` (the CLI) and `bb-app` for administration: `sudo -u bb -H bb settings ...`.
@@ -403,8 +411,8 @@ in
             RemainAfterExit = true;
             ExecStartPre = "${pkgs.coreutils}/bin/timeout 120 ${pkgs.bash}/bin/sh -c 'until ${tailscale}/bin/tailscale status >/dev/null 2>&1; do sleep 1; done'";
             # `serve`, never `funnel`.
-            ExecStart = "${tailscale}/bin/tailscale serve --bg --https=${toString port} http://127.0.0.1:${toString cfg.port}";
-            ExecStop = "${tailscale}/bin/tailscale serve --https=${toString port} off";
+            ExecStart = retry "${tailscale}/bin/tailscale serve --bg --https=${toString port} http://127.0.0.1:${toString cfg.port}";
+            ExecStop = retry "${tailscale}/bin/tailscale serve --https=${toString port} off";
           };
         }
       ) (lib.optionals cfg.tailscaleServe.enable cfg.tailscaleServe.ports)

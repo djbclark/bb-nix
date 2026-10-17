@@ -159,6 +159,16 @@ let
         && lib.hasInfix "= bb ]" (extraInit server);
     }
     {
+      msg = "the bb user's profile has Node.js (npm-installed agents run by #!/usr/bin/env node)";
+      ok = lib.any (p: lib.hasPrefix "nodejs" (p.pname or p.name or "")) server.config.users.users.bb.packages;
+    }
+    {
+      msg = "tailscale serve units retry on an etag mismatch";
+      ok =
+        inUnit server "bb-tailscale-serve-443.service" "sleep $$i"
+        && inUnit server "bb-tailscale-serve-443.service" "serve --https=443 off";
+    }
+    {
       msg = "host daemon with a created user defaults to /var/lib/bb-host/.local";
       ok = inUnit daemonCreated "bb-host-daemon.service" "NPM_CONFIG_PREFIX=/var/lib/bb-host/.local";
     }

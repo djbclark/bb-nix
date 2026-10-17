@@ -137,7 +137,8 @@ in
         on both PATHs. See `services.bb.npmGlobalPrefix`, which this mirrors. For an existing user
         (`createUser = false`) the default is `null`, because the module does not know or touch that user's
         home: set it to a directory that user can write, for example `~/.local`, or set `NPM_CONFIG_PREFIX`
-        in that user's own shell profile.
+        in that user's own shell profile. Either way that user needs Node.js on its login PATH (the module adds
+        it to a created user's profile only).
       '';
     };
 
@@ -226,7 +227,8 @@ in
         createHome = true;
         homeMode = "0700";
         shell = pkgs.bashInteractive;
-        packages = cfg.extraPackages;
+        # Node.js too with an npm prefix: npm-installed agents run by `#!/usr/bin/env node`.
+        packages = cfg.extraPackages ++ lib.optional (cfg.npmGlobalPrefix != null) cfg.nodejs;
       };
     };
 
