@@ -243,6 +243,7 @@ hash-pinned tarballs). Then `nix flake update bb-nix` in your system flake and s
 | `claudeCode.executable` | `null` | `BB_CLAUDE_CODE_EXECUTABLE` |
 | `claudeCode.nativeInstaller` | `false` | `programs.nix-ld` and `environment.localBinInPath` |
 | `npmGlobalPrefix` | `<dataDir>/.local` | `NPM_CONFIG_PREFIX` for the unit and the user's login shells, `<prefix>/bin` first on PATH. BB's agent installer runs `npm install -g`, which fails on NixOS without it (see below). `null` turns it off |
+| `sslCertFile` | `/etc/ssl/certs/ca-certificates.crt` | `SSL_CERT_FILE` for the unit and the user's login shells. Python's stdlib on NixOS (uv-managed and python-build-standalone interpreters that agents such as Hermes install) finds no hashed CA links and fails every HTTPS call with `CERTIFICATE_VERIFY_FAILED` without it. `null` turns it off |
 | `extraPackages` | `[ ]` | Agent tools: the user's profile and the unit's PATH |
 | `environment` | `{ }` | More unit environment; never secrets |
 | `environmentFile` | `null` | `EnvironmentFile` for secrets such as `CLAUDE_CODE_OAUTH_TOKEN` |
@@ -263,6 +264,7 @@ hash-pinned tarballs). Then `nix flake update bb-nix` in your system flake and s
 | `port` | `38888` | `--host-daemon-port` (loopback) |
 | `ldPreload` | `null` | For example the loopback-port-shim under libkrun |
 | `npmGlobalPrefix` | `<dataDir>/.local` with a created user, else `null` | As in `services.bb`. For an existing user, set it to a directory that user can write (e.g. `~/.local`) or export `NPM_CONFIG_PREFIX` in that user's profile |
+| `sslCertFile` | `/etc/ssl/certs/ca-certificates.crt` | As in `services.bb`, also for an existing user (only that user's login shells, guarded by name) |
 | `extraPackages` | `[ ]` | Agent tools |
 | `forwarder.enable` | `false` | The socat loopback forwarder unit |
 | `forwarder.listenPort`, `.proxy`, `.target` | `38443`, `127.0.0.1:1055`, `null` | Listen port, CONNECT proxy, server `host:port` |

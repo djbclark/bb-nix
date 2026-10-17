@@ -180,6 +180,18 @@ in
       '';
     };
 
+    sslCertFile = mkOption {
+      type = types.nullOr types.str;
+      default = "/etc/ssl/certs/ca-certificates.crt";
+      example = null;
+      description = ''
+        CA bundle exported as `SSL_CERT_FILE` in the unit and in the service user's login shells. Python's stdlib on NixOS
+        (the uv-managed and python-build-standalone interpreters agents install, for example Hermes) looks in
+        `/etc/ssl/certs` for hashed links that NixOS does not create, so every HTTPS call fails with
+        `CERTIFICATE_VERIFY_FAILED`; this file is the system bundle NixOS keeps current. `null` exports nothing.
+      '';
+    };
+
     extraPackages = mkOption {
       type = types.listOf types.package;
       default = [ ];
@@ -319,10 +331,14 @@ in
     # shell, and extraInit is its hook for code that cannot be a plain variable. A guard on the user name
     # keeps it from touching anyone else, and no file in the user's home is created or edited (a ~/.profile
     # or ~/.npmrc would be state the module does not own and could not update on a rebuild).
-    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null) ''
+    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null || cfg.sslCertFile != null) ''
       if [ "$(${pkgs.coreutils}/bin/id -un 2>/dev/null)" = ${lib.escapeShellArg cfg.user} ]; then
+      ${lib.optionalString (cfg.npmGlobalPrefix != null) ''
         export NPM_CONFIG_PREFIX=${lib.escapeShellArg cfg.npmGlobalPrefix}
         export PATH=${lib.escapeShellArg cfg.npmGlobalPrefix}/bin:"$PATH"
+      ''}${lib.optionalString (cfg.sslCertFile != null) ''
+        export SSL_CERT_FILE=${lib.escapeShellArg cfg.sslCertFile}
+      ''}
       fi
     '';
 
@@ -351,6 +367,7 @@ in
           BB_TELEMETRY = lib.boolToString cfg.telemetry;
         }
         // optionalAttrs (cfg.npmGlobalPrefix != null) { NPM_CONFIG_PREFIX = cfg.npmGlobalPrefix; }
+        // optionalAttrs (cfg.sslCertFile != null) { SSL_CERT_FILE = cfg.sslCertFile; }
         // optionalAttrs (cfg.appUrl != null) { BB_APP_URL = cfg.appUrl; }
         // optionalAttrs (cfg.externalUrl != null) { BB_EXTERNAL_URL = cfg.externalUrl; }
         // optionalAttrs (cfg.claudeCode.executable != null) {

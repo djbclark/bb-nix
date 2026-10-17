@@ -142,6 +142,18 @@ in
       '';
     };
 
+    sslCertFile = mkOption {
+      type = types.nullOr types.str;
+      default = "/etc/ssl/certs/ca-certificates.crt";
+      example = null;
+      description = ''
+        CA bundle exported as `SSL_CERT_FILE` in the unit and in the agents' user's login shells. Python's stdlib on NixOS
+        (the uv-managed and python-build-standalone interpreters agents install, for example Hermes) looks in
+        `/etc/ssl/certs` for hashed links that NixOS does not create, so every HTTPS call fails with
+        `CERTIFICATE_VERIFY_FAILED`; this file is the system bundle NixOS keeps current. `null` exports nothing.
+      '';
+    };
+
     extraPackages = mkOption {
       type = types.listOf types.package;
       default = [ ];
@@ -238,10 +250,14 @@ in
 
     # Login shells of the agents' user get the npm prefix (see services.bb for why extraInit, and why a
     # guard on the user name instead of a file in the home directory).
-    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null) ''
+    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null || cfg.sslCertFile != null) ''
       if [ "$(${pkgs.coreutils}/bin/id -un 2>/dev/null)" = ${lib.escapeShellArg cfg.user} ]; then
+      ${lib.optionalString (cfg.npmGlobalPrefix != null) ''
         export NPM_CONFIG_PREFIX=${lib.escapeShellArg cfg.npmGlobalPrefix}
         export PATH=${lib.escapeShellArg cfg.npmGlobalPrefix}/bin:"$PATH"
+      ''}${lib.optionalString (cfg.sslCertFile != null) ''
+        export SSL_CERT_FILE=${lib.escapeShellArg cfg.sslCertFile}
+      ''}
       fi
     '';
 
@@ -291,6 +307,7 @@ in
         BB_DATA_DIR = cfg.dataDir;
       }
       // optionalAttrs (cfg.npmGlobalPrefix != null) { NPM_CONFIG_PREFIX = cfg.npmGlobalPrefix; }
+      // optionalAttrs (cfg.sslCertFile != null) { SSL_CERT_FILE = cfg.sslCertFile; }
       # With an existing user, HOME stays what the user database says (systemd sets it for User=).
       // optionalAttrs cfg.createUser { HOME = cfg.dataDir; }
       // optionalAttrs (cfg.ldPreload != null) { LD_PRELOAD = toString cfg.ldPreload; };

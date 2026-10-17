@@ -184,6 +184,16 @@ let
         && inUnit daemon "bb-host-daemon.service" "bb-hosts-entry.service";
     }
     {
+      msg = "bb.service and bb's login shells get SSL_CERT_FILE (NixOS Python stdlib TLS)";
+      ok =
+        inUnit server "bb.service" "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+        && lib.hasInfix "export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt" (extraInit server);
+    }
+    {
+      msg = "the host daemon unit gets SSL_CERT_FILE too";
+      ok = inUnit daemon "bb-host-daemon.service" "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt";
+    }
+    {
       msg = "host daemon with an existing user has no npm prefix by default";
       ok =
         !(inUnit daemon "bb-host-daemon.service" "NPM_CONFIG_PREFIX")
