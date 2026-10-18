@@ -244,6 +244,7 @@ hash-pinned tarballs). Then `nix flake update bb-nix` in your system flake and s
 | `claudeCode.nativeInstaller` | `false` | `programs.nix-ld` and `environment.localBinInPath` |
 | `npmGlobalPrefix` | `<dataDir>/.local` | `NPM_CONFIG_PREFIX` for the unit and the user's login shells, `<prefix>/bin` first on PATH. BB's agent installer runs `npm install -g`, which fails on NixOS without it (see below). `null` turns it off |
 | `sslCertFile` | `/etc/ssl/certs/ca-certificates.crt` | `SSL_CERT_FILE` for the unit and the user's login shells. Python's stdlib on NixOS (uv-managed and python-build-standalone interpreters that agents such as Hermes install) finds no hashed CA links and fails every HTTPS call with `CERTIFICATE_VERIFY_FAILED` without it. `null` turns it off |
+| `sessionBus` | `true` | `bb-session-bus.service`, one D-Bus session bus for the user, and `DBUS_SESSION_BUS_ADDRESS` for the unit and the user's login shells. Without it every keyring lookup (Copilot CLI, Hermes, `gh`) autolaunches a `dbus-daemon` that never exits. `false` turns it off |
 | `extraPackages` | `[ ]` | Agent tools: the user's profile and the unit's PATH |
 | `environment` | `{ }` | More unit environment; never secrets |
 | `environmentFile` | `null` | `EnvironmentFile` for secrets such as `CLAUDE_CODE_OAUTH_TOKEN` |

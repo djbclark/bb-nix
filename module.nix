@@ -30,6 +30,10 @@ let
   # the user's home (the same path) is made by the user database and its parent must exist.
   underVarLib = lib.hasPrefix "/var/lib/" cfg.dataDir;
 
+  # The service user's own session bus (option `sessionBus`): a socket in a runtime directory only that
+  # user can enter.
+  busAddress = "unix:path=/run/bb-session-bus/bus";
+
   tailscale = config.services.tailscale.package;
   serveUnitName = port: "bb-tailscale-serve-${toString port}";
   # `tailscale serve` changes are compare-and-swap on one config: two of these units starting or stopping
@@ -192,6 +196,19 @@ in
       '';
     };
 
+    sessionBus = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Run one D-Bus session bus for the service user (`bb-session-bus.service`) and export its
+        `DBUS_SESSION_BUS_ADDRESS` in the unit and the user's login shells. A system user has no login
+        session, so with no address an agent that looks up a keyring (the GitHub Copilot CLI, Hermes, `gh`)
+        gets a bus autolaunched through `dbus-launch`, and that `dbus-daemon` never exits: 22 had piled up
+        on one host in a day. There is no Secret Service on this bus either, so the lookups fail as before
+        and the agents fall back to their own files; only the leak goes. `false` exports nothing.
+      '';
+    };
+
     extraPackages = mkOption {
       type = types.listOf types.package;
       default = [ ];
@@ -331,13 +348,15 @@ in
     # shell, and extraInit is its hook for code that cannot be a plain variable. A guard on the user name
     # keeps it from touching anyone else, and no file in the user's home is created or edited (a ~/.profile
     # or ~/.npmrc would be state the module does not own and could not update on a rebuild).
-    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null || cfg.sslCertFile != null) ''
+    environment.extraInit = mkIf (cfg.npmGlobalPrefix != null || cfg.sslCertFile != null || cfg.sessionBus) ''
       if [ "$(${pkgs.coreutils}/bin/id -un 2>/dev/null)" = ${lib.escapeShellArg cfg.user} ]; then
       ${lib.optionalString (cfg.npmGlobalPrefix != null) ''
         export NPM_CONFIG_PREFIX=${lib.escapeShellArg cfg.npmGlobalPrefix}
         export PATH=${lib.escapeShellArg cfg.npmGlobalPrefix}/bin:"$PATH"
       ''}${lib.optionalString (cfg.sslCertFile != null) ''
         export SSL_CERT_FILE=${lib.escapeShellArg cfg.sslCertFile}
+      ''}${lib.optionalString cfg.sessionBus ''
+        export DBUS_SESSION_BUS_ADDRESS=${lib.escapeShellArg busAddress}
       ''}
       fi
     '';
@@ -347,8 +366,8 @@ in
     systemd.services = {
       bb = {
         description = "BB: server, web UI and local host daemon";
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
+        after = [ "network-online.target" ] ++ lib.optional cfg.sessionBus "bb-session-bus.service";
+        wants = [ "network-online.target" ] ++ lib.optional cfg.sessionBus "bb-session-bus.service";
         wantedBy = [ "multi-user.target" ];
         # A plain string in `path` is a directory whose bin/ is added: the npm global prefix, first.
         path =
@@ -368,6 +387,7 @@ in
         }
         // optionalAttrs (cfg.npmGlobalPrefix != null) { NPM_CONFIG_PREFIX = cfg.npmGlobalPrefix; }
         // optionalAttrs (cfg.sslCertFile != null) { SSL_CERT_FILE = cfg.sslCertFile; }
+        // optionalAttrs cfg.sessionBus { DBUS_SESSION_BUS_ADDRESS = busAddress; }
         // optionalAttrs (cfg.appUrl != null) { BB_APP_URL = cfg.appUrl; }
         // optionalAttrs (cfg.externalUrl != null) { BB_EXTERNAL_URL = cfg.externalUrl; }
         // optionalAttrs (cfg.claudeCode.executable != null) {
@@ -409,6 +429,21 @@ in
         // optionalAttrs (cfg.environmentFile != null) { EnvironmentFile = cfg.environmentFile; }
         // optionalAttrs (cfg.memoryHigh != null) { MemoryHigh = cfg.memoryHigh; }
         // optionalAttrs (cfg.memoryMax != null) { MemoryMax = cfg.memoryMax; };
+      };
+    }
+    // optionalAttrs cfg.sessionBus {
+      bb-session-bus = {
+        description = "D-Bus session bus for the BB service user";
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          ExecStart = "${pkgs.dbus}/bin/dbus-daemon --session --nofork --nopidfile --address=${busAddress}";
+          User = cfg.user;
+          Group = cfg.group;
+          RuntimeDirectory = "bb-session-bus";
+          RuntimeDirectoryMode = "0700";
+          Restart = "on-failure";
+          RestartSec = 5;
+        };
       };
     }
     // lib.listToAttrs (
